@@ -1,0 +1,203 @@
+-- HUB TURBO INSANO COM ALERTAS E RADAR TOP
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- CONFIGURAÇÕES
+local config = {
+    autoFarm = true,
+    autoSkills = true,
+    rapidAttack = true,
+    autoCollect = true,
+    flyMode = true,
+    interactObjects = true,
+    autoHelicopter = true,
+    showRadar = true,
+    alerts = true
+}
+
+local teleportHeight = 10
+local attackSpeed = 0.05
+local skillCooldowns = {}
+
+-- FUNÇÕES DO HUB
+local function flyAboveZombies()
+    if not config.flyMode then return end
+    for _, zombie in pairs(Workspace:GetChildren()) do
+        if zombie.Name == "Zombie" and zombie:FindFirstChild("HumanoidRootPart") then
+            rootPart.CFrame = CFrame.new(zombie.HumanoidRootPart.Position + Vector3.new(0, teleportHeight, 0))
+        end
+    end
+end
+
+local function rapidFire()
+    if not config.rapidAttack then return end
+    for _, zombie in pairs(Workspace:GetChildren()) do
+        if zombie.Name == "Zombie" and zombie:FindFirstChild("Humanoid") then
+            zombie.Humanoid.Health = 0
+        end
+    end
+end
+
+local function collectItems()
+    if not config.autoCollect then return end
+    for _, item in pairs(Workspace:GetChildren()) do
+        if item:IsA("Part") and (item.Name == "Coin" or item.Name == "Item") then
+            rootPart.CFrame = item.CFrame
+            if config.alerts then
+                print("Pegando item: "..item.Name)
+            end
+        end
+    end
+end
+
+local function interactObjects()
+    if not config.interactObjects then return end
+    local objects = {"Radio", "Generator", "Sewage"}
+    for _, objName in pairs(objects) do
+        local obj = Workspace:FindFirstChild(objName)
+        if obj and obj:FindFirstChild("ClickDetector") then
+            fireclickdetector(obj.ClickDetector)
+        end
+    end
+end
+
+local function useSkills()
+    if not config.autoSkills then return end
+    for _, skill in pairs(player.Backpack:GetChildren()) do
+        if skill:IsA("Tool") then
+            local lastUsed = skillCooldowns[skill] or 0
+            local now = tick()
+            local cooldown = skill:FindFirstChild("Cooldown") and skill.Cooldown.Value or 1
+            if now - lastUsed >= cooldown then
+                skill:Activate()
+                skillCooldowns[skill] = now
+            end
+        end
+    end
+end
+
+local function enterHelicopter()
+    if not config.autoHelicopter then return end
+    local heli = Workspace:FindFirstChild("Helicopter")
+    if heli and heli:FindFirstChild("Seat") then
+        local seat = heli.Seat
+        if seat.Occupant == nil then
+            rootPart.CFrame = seat.CFrame + Vector3.new(0,2,0)
+            humanoid.Sit = true
+            if config.alerts then print("Entrando no helicóptero!") end
+        end
+    end
+end
+
+-- LOOP PRINCIPAL
+RunService.RenderStepped:Connect(function()
+    if config.autoFarm then
+        flyAboveZombies()
+        useSkills()
+        rapidFire()
+        collectItems()
+        interactObjects()
+        enterHelicopter()
+    end
+end)
+
+-- CRIAÇÃO DA UI
+local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+ScreenGui.Name = "HubInsanoUI"
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 240, 0, 480)
+mainFrame.Position = UDim2.new(0, 20, 0, 20)
+mainFrame.BackgroundColor3 = Color3.fromRGB(35,35,35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = ScreenGui
+
+local UIListLayout = Instance.new("UIListLayout", mainFrame)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0,10)
+
+local function createToggle(name, configKey)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, -20, 0, 40)
+    button.BackgroundColor3 = Color3.fromRGB(60,60,60)
+    button.BorderSizePixel = 0
+    button.TextColor3 = Color3.fromRGB(255,255,255)
+    button.TextScaled = true
+    button.Text = name..": ON"
+    button.LayoutOrder = #mainFrame:GetChildren()
+    button.Parent = mainFrame
+
+    button.MouseButton1Click:Connect(function()
+        config[configKey] = not config[configKey]
+        button.Text = name..(config[configKey] and ": ON" or ": OFF")
+        button.BackgroundColor3 = config[configKey] and Color3.fromRGB(0,170,0) or Color3.fromRGB(170,0,0)
+    end)
+end
+
+-- BOTÕES
+createToggle("Auto Farm","autoFarm")
+createToggle("Auto Skills","autoSkills")
+createToggle("Rapid Attack","rapidAttack")
+createToggle("Auto Collect","autoCollect")
+createToggle("Fly Mode","flyMode")
+createToggle("Interact Obj","interactObjects")
+createToggle("Auto Helicopter","autoHelicopter")
+createToggle("Show Radar","showRadar")
+createToggle("Alerts","alerts")
+
+-- RADAR TOP COMPLETO
+local radarFrame = Instance.new("Frame")
+radarFrame.Size = UDim2.new(0,150,0,150)
+radarFrame.Position = UDim2.new(1,-170,0,20)
+radarFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+radarFrame.BorderSizePixel = 0
+radarFrame.Parent = ScreenGui
+
+local function updateRadar()
+    if not config.showRadar then return end
+    for _, child in pairs(radarFrame:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    -- Zombies
+    for _, zombie in pairs(Workspace:GetChildren()) do
+        if zombie.Name=="Zombie" and zombie:FindFirstChild("HumanoidRootPart") then
+            local pos = zombie.HumanoidRootPart.Position-rootPart.Position
+            local dot = Instance.new("Frame")
+            dot.Size=UDim2.new(0,4,0,4)
+            dot.BackgroundColor3=Color3.fromRGB(255,0,0)
+            dot.Position=UDim2.new(0.5,pos.X/5,0.5,pos.Z/5)
+            dot.AnchorPoint=Vector2.new(0.5,0.5)
+            dot.Parent=radarFrame
+        end
+    end
+    -- Itens
+    for _, item in pairs(Workspace:GetChildren()) do
+        if item:IsA("Part") and (item.Name=="Coin" or item.Name=="Item") then
+            local pos = item.Position-rootPart.Position
+            local dot = Instance.new("Frame")
+            dot.Size=UDim2.new(0,3,0,3)
+            dot.BackgroundColor3=Color3.fromRGB(255,255,0)
+            dot.Position=UDim2.new(0.5,pos.X/5,0.5,pos.Z/5)
+            dot.AnchorPoint=Vector2.new(0.5,0.5)
+            dot.Parent=radarFrame
+        end
+    end
+    -- Helicóptero
+    local heli = Workspace:FindFirstChild("Helicopter")
+    if heli and heli:FindFirstChild("Seat") then
+        local pos = heli.Seat.Position-rootPart.Position
+        local dot = Instance.new("Frame")
+        dot.Size=UDim2.new(0,6,0,6)
+        dot.BackgroundColor3=Color3.fromRGB(0,170,255)
+        dot.Position=UDim2.new(0.5,pos.X/5,0.5,pos.Z/5)
+        dot.AnchorPoint=Vector2.new(0.5,0.5)
+        dot.Parent=radarFrame
+    end
+end
+
+RunService.RenderStepped:Connect(updateRadar)
